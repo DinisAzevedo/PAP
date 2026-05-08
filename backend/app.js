@@ -8,6 +8,7 @@ const app = express();
 
 app.use(express.json());
 
+
 app.get("/", async (req, res) => {
   try {
     res.json("online");
@@ -26,17 +27,23 @@ app.get("/table/:nometabela", async (req, res) => {
   }
 });
 
-app.post("/ecoponto", async (req, res) => {
+app.post("/inserir/:tabela", async (req, res) => {
   try {
-    const { codigo, latitude, longitude, descricao, depositoId, tipoEcopontoId } = req.body;
-    if (!codigo || latitude === undefined || longitude === undefined || !descricao || !depositoId || !tipoEcopontoId) {
-      return res.status(400).json({ erro: "codigo, latitude, longitude, descricao, depositoId e tipoEcopontoId são obrigatórios" });
+    const dados = req.body;
+    const { tabela } = req.params;
+
+    const tabelasValidas = ["ecoponto", "tipo_ecoponto", "deposito", "tipo_deposito", "equipamento", "ecoponto_equipamento", "ecoponto_logs"];
+    if (!tabelasValidas.includes(tabela)) {
+      return res.status(400).json({ erro: "Tabela inválida" });
     }
+    const colunas = Object.keys(dados).join(", ");
+    const valores = Object.values(dados);
+    const placeholders = valores.map((_, index) => `$${index + 1}`).join(", ");
 
-    const sql = "INSERT INTO ecoponto (codigo, latitude, longitude, descricao, depositoId, tipoEcopontoId) VALUES ($1, $2, $3, $4, $5, $6)";
-    await pool.query(sql, [codigo, latitude, longitude, descricao, depositoId, tipoEcopontoId]);
+    const sql = `INSERT INTO ${tabela} (${colunas}) VALUES (${placeholders})`;
+    await pool.query(sql, valores);
 
-    res.json("Ecoponto criado com sucesso");
+    res.json("Registro criado com sucesso");
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
@@ -46,14 +53,14 @@ app.post("/capacidade", async (req, res) => {
   try {
     const { codigoEquipamento, profundidade } = req.body;
 
-    const ecopontoData = await pool.query(`"Select * from vw_ecoponto_full where codigoEquipamento = $1"`, [codigoEquipamento]);
+    const ecopontoData = await pool.query("Select * from vw_ecoponto_full where codigoEquipamento = $1", [codigoEquipamento]);
     if (ecopontoData.rows.length === 0) {
       return res.status(404).json({ erro: "Equipamento não encontrado ou sem ecoponto associado" });
     }
 
     const ecopontoId = ecopontoData.rows[0].id;
-    const capacidadeTotal = ecopontoData.rows[0].capacidadeTotal;
-    const alturaDeposito = ecopontoData.rows[0].alturaDeposito;
+    const capacidadeTotal = ecopontoData.rows[0].capacidadetotal;
+    const alturaDeposito = ecopontoData.rows[0].alturadeposito;
 
     const percentagem = (profundidade / alturaDeposito);
     const capacidadeAtual = (percentagem * capacidadeTotal).toFixed(2);
