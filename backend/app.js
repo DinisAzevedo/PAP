@@ -65,9 +65,7 @@ app.post("/atualizar/:tabela/:id", async (req, res) => {
       .join(", ");
 
     const sql = `UPDATE ${tabela} SET ${setQuery} WHERE id = $${valores.length + 1}`;
-
     console.log(sql, [...valores, id]);
-
     await pool.query(sql, [...valores, id]);
 
     res.json("Registro atualizado com sucesso");
@@ -75,6 +73,32 @@ app.post("/atualizar/:tabela/:id", async (req, res) => {
     res.status(500).json({ erro: err.message });
   }
 });
+
+app.post("/atualizar/:tabela/:id1/:id2", async (req, res) => {
+  try {
+    const dados = req.body;
+    const { tabela, id1, id2 } = req.params;
+
+    const tabelasValidas = ["ecoponto_equipamento"];
+    if (!tabelasValidas.includes(tabela)) {
+      return res.status(400).json({ erro: "Tabela inválida" });
+    }
+    const colunas = Object.keys(dados);
+    const valores = Object.values(dados);
+    const setQuery = colunas
+      .map((coluna, index) => `${coluna} = $${index + 1}`)
+      .join(", ");
+
+    const sql = `UPDATE ${tabela} SET ${setQuery} WHERE ecopontoid = $${valores.length + 1} AND equipamentoid = $${valores.length + 2}`;
+    console.log(sql, [...valores, id1, id2]);
+    const result = await pool.query(sql, [...valores, id1, id2]);
+
+    res.json("Registro atualizado com sucesso " + result.rowCount + " colunas afetadas");
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 app.post("/apagar/:tabela/:id", async (req, res) => {
   try {
     const { tabela, id } = req.params;
@@ -84,6 +108,24 @@ app.post("/apagar/:tabela/:id", async (req, res) => {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
     const sql = `DELETE FROM ${tabela} WHERE id = ${id}`;
+
+    await pool.query(sql);
+
+    res.json("Registro apagado com sucesso");
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+app.post("/apagar/:tabela/:id1/:id2", async (req, res) => {
+  try {
+    const { tabela, id1, id2 } = req.params;
+
+    const tabelasValidas = ["ecoponto_equipamento"];
+    if (!tabelasValidas.includes(tabela)) {
+      return res.status(400).json({ erro: "Tabela inválida" });
+    }
+    const sql = `DELETE FROM ${tabela} WHERE ecopontoid = ${id1} AND equipamentoid = ${id2 }`;
 
     await pool.query(sql);
 
