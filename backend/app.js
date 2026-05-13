@@ -1,16 +1,27 @@
 const express = require("express");
 const path = require("path");
 require('dotenv').config({ path: path.resolve(__dirname, "../.env") });
-const pool = require("./db");
+const { TipoEcoponto, TipoDeposito, Deposito, Ecoponto, Equipamento, EcopontoEquipamento, EcopontoLogs } = require("./models/models");
 const PORT = process.env.PORT || 3000;
+const { inserirDados } = require("./script");
 
 const app = express();
 
 app.use(express.json());
 
+const tabelas = {
+  "tipo_ecoponto": TipoEcoponto,
+  "tipo_deposito": TipoDeposito,
+  "deposito": Deposito,
+  "ecoponto": Ecoponto,
+  "equipamento": Equipamento,
+  "ecoponto_equipamento": EcopontoEquipamento,
+  "ecoponto_logs": EcopontoLogs
+}
 
 app.get("/", async (req, res) => {
   try {
+    await inserirDados();
     res.json("online");
   } catch (err) {
     res.status(500).json({ erro: err.message });
@@ -20,53 +31,48 @@ app.get("/", async (req, res) => {
 app.get("/tabela/:nometabela", async (req, res) => {
   try {
     const { nometabela } = req.params;
-    const result = await pool.query(`SELECT * from ${nometabela}`);
-    res.json(result.rows);
+    const tabela = tabelas[nometabela];
+    if (!tabela) {
+      return res.status(400).json({ erro: "Tabela inválida" });
+    }
+    const result = await tabela.findAll();
+    res.json(result);
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 });
 
-app.post("/inserir/:tabela", async (req, res) => {
+app.post("/inserir/:nometabela", async (req, res) => {
   try {
     const dados = req.body;
-    const { tabela } = req.params;
+    const { nometabela } = req.params;
 
-    const tabelasValidas = ["ecoponto", "tipo_ecoponto", "deposito", "tipo_deposito", "equipamento", "ecoponto_equipamento", "ecoponto_logs"];
-    if (!tabelasValidas.includes(tabela)) {
+    const tabela = tabelas[nometabela];~
+    console.log(tabela);
+    if (!tabela) {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
-    const colunas = Object.keys(dados).join(", ");
-    const valores = Object.values(dados);
-    const placeholders = valores.map((_, index) => `$${index + 1}`).join(", ");
-
-    const sql = `INSERT INTO ${tabela} (${colunas}) VALUES (${placeholders})`;
-    await pool.query(sql, valores);
-
+    await tabela.bulkCreate(dados);
     res.json("Registro criado com sucesso");
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 });
 
-app.post("/atualizar/:tabela/:id", async (req, res) => {
+app.put("/atualizar/:nometabela/:id", async (req, res) => {
   try {
     const dados = req.body;
-    const { tabela, id } = req.params;
+    const { nometabela, id } = req.params;
 
-    const tabelasValidas = ["ecoponto", "tipo_ecoponto", "deposito", "tipo_deposito", "equipamento", "ecoponto_equipamento", "ecoponto_logs"];
-    if (!tabelasValidas.includes(tabela)) {
+    const tabela = tabelas[nometabela];
+    if (!tabela) {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
-    const colunas = Object.keys(dados);
-    const valores = Object.values(dados);
-    const setQuery = colunas
-      .map((coluna, index) => `${coluna} = $${index + 1}`)
-      .join(", ");
+    const result = await tabela.update(dados, { where: { id: id } });
 
-    const sql = `UPDATE ${tabela} SET ${setQuery} WHERE id = $${valores.length + 1}`;
-    console.log(sql, [...valores, id]);
-    await pool.query(sql, [...valores, id]);
+    if (result[0] === 0) {
+      return res.status(404).json({ erro: "Registro não encontrado" });
+    }
 
     res.json("Registro atualizado com sucesso");
   } catch (err) {
@@ -74,24 +80,20 @@ app.post("/atualizar/:tabela/:id", async (req, res) => {
   }
 });
 
-app.post("/atualizar/:tabela/:id1/:id2", async (req, res) => {
+app.put("/atualizar/:nometabela/:id1/:id2", async (req, res) => {
   try {
     const dados = req.body;
-    const { tabela, id1, id2 } = req.params;
+    const { nometabela, id1, id2 } = req.params;
 
-    const tabelasValidas = ["ecoponto_equipamento"];
-    if (!tabelasValidas.includes(tabela)) {
+    const tabela = tabelas[nometabela];
+    if (!tabela) {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
-    const colunas = Object.keys(dados);
-    const valores = Object.values(dados);
-    const setQuery = colunas
-      .map((coluna, index) => `${coluna} = $${index + 1}`)
-      .join(", ");
+    const result = await tabela.update(dados, { where: { ecopontoId: id1, equipamentoId: id2 } });
 
-    const sql = `UPDATE ${tabela} SET ${setQuery} WHERE ecopontoid = $${valores.length + 1} AND equipamentoid = $${valores.length + 2}`;
-    console.log(sql, [...valores, id1, id2]);
-    const result = await pool.query(sql, [...valores, id1, id2]);
+    if (result[0] === 0) {
+      return res.status(404).json({ erro: "Registro não encontrado" });
+    }
 
     res.json("Registro atualizado com sucesso " + result.rowCount + " colunas afetadas");
   } catch (err) {
@@ -99,17 +101,16 @@ app.post("/atualizar/:tabela/:id1/:id2", async (req, res) => {
   }
 });
 
-app.post("/apagar/:tabela/:id", async (req, res) => {
+app.delete("/apagar/:nometabela/:id", async (req, res) => {
   try {
-    const { tabela, id } = req.params;
+    const { nometabela, id } = req.params;
 
-    const tabelasValidas = ["ecoponto", "tipo_ecoponto", "deposito", "tipo_deposito", "equipamento", "ecoponto_equipamento", "ecoponto_logs"];
-    if (!tabelasValidas.includes(tabela)) {
+    const tabela = tabelas[nometabela];
+    if (!tabela) {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
-    const sql = `DELETE FROM ${tabela} WHERE id = ${id}`;
-
-    await pool.query(sql);
+   
+    await tabela.destroy({ where: { id: id } });
 
     res.json("Registro apagado com sucesso");
   } catch (err) {
@@ -117,17 +118,16 @@ app.post("/apagar/:tabela/:id", async (req, res) => {
   }
 });
 
-app.post("/apagar/:tabela/:id1/:id2", async (req, res) => {
+app.delete("/apagar/:nometabela/:id1/:id2", async (req, res) => {
   try {
-    const { tabela, id1, id2 } = req.params;
+    const { nometabela, id1, id2 } = req.params;
 
-    const tabelasValidas = ["ecoponto_equipamento"];
-    if (!tabelasValidas.includes(tabela)) {
+    const tabela = tabelas[nometabela];
+    if (!tabela) {
       return res.status(400).json({ erro: "Tabela inválida" });
     }
-    const sql = `DELETE FROM ${tabela} WHERE ecopontoid = ${id1} AND equipamentoid = ${id2 }`;
-
-    await pool.query(sql);
+    
+    await tabela.destroy({ where: { ecopontoId: id1, equipamentoId: id2 } });
 
     res.json("Registro apagado com sucesso");
   } catch (err) {
@@ -135,24 +135,40 @@ app.post("/apagar/:tabela/:id1/:id2", async (req, res) => {
   }
 });
 
-app.post("/capacidade", async (req, res) => {
+app.put("/capacidade", async (req, res) => {
   try {
     const { codigoEquipamento, profundidade } = req.body;
 
-    const ecopontoData = await pool.query("Select * from vw_ecoponto_full where codigoEquipamento = $1", [codigoEquipamento]);
-    if (ecopontoData.rows.length === 0) {
-      return res.status(404).json({ erro: "Equipamento não encontrado ou sem ecoponto associado" });
+    const equipamento = await Equipamento.findOne({ where: { codigo: codigoEquipamento } });
+    if (!equipamento) {
+      return res.status(404).json({ erro: "Equipamento não encontrado" });
+    }
+    const equipamentoId = equipamento.id;
+
+    const ecopontoEquipamento = await EcopontoEquipamento.findOne({ where: { equipamentoId: equipamentoId, ativo: true } });
+    if (!ecopontoEquipamento) {
+      return res.status(404).json({ erro: "Ecoponto associado ao equipamento não encontrado" });
+    }
+    const ecopontoId = ecopontoEquipamento.ecopontoId;
+
+    const ecoponto = await Ecoponto.findByPk(ecopontoId);
+    if (!ecoponto) {
+      return res.status(404).json({ erro: "Ecoponto não encontrado" });
     }
 
-    const ecopontoId = ecopontoData.rows[0].id;
-    const capacidadeTotal = ecopontoData.rows[0].capacidadetotal;
-    const alturaDeposito = ecopontoData.rows[0].alturadeposito;
+    const deposito = await Deposito.findByPk(ecoponto.depositoId);
+    if (!deposito) {
+      return res.status(404).json({ erro: "Depósito associado ao ecoponto não encontrado" });
+    }
 
-    const percentagem = (profundidade / alturaDeposito);
-    const capacidadeAtual = (percentagem * capacidadeTotal).toFixed(2);
+    const capacidadeTotal = deposito.capacidadeTotal;
+    const altura = deposito.altura;
 
-    const sql = "UPDATE ecoponto SET capacidadeAtual = $1 WHERE id = $2";
-    await pool.query(sql, [capacidadeAtual, ecopontoId]);
+    const percentagem = profundidade / altura;
+    const capacidadeAtual = percentagem * capacidadeTotal;
+
+    await ecoponto.update({ capacidadeAtual: capacidadeAtual }); 
+
 
     res.json("simmmm");
   } catch (err) {

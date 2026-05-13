@@ -1,15 +1,178 @@
-const path = require("path");
-require('dotenv').config({ path: path.resolve(__dirname, "../.env") });
-const pool = require("./db");
-const fs = require("fs");
+const {
+  TipoEcoponto,
+  TipoDeposito,
+  Deposito,
+  Ecoponto,
+  Equipamento,
+  EcopontoEquipamento
+} = require("./models/models");
 
-async function runSQL() {
-  const sqlPath = path.join(__dirname, "../dist/queries_combinadas.sql");
-  const sql = fs.readFileSync(sqlPath, "utf8");
+const sequelize = require("./db");
 
-  await pool.query(sql);
 
-  console.log("SQL executado!");
+async function inserirDados() {
+
+  await sequelize.sync({ force: true });
+
+  /* =========================
+     TIPO ECOPONTO
+  ========================= */
+
+  await TipoEcoponto.bulkCreate([
+    { tipo: "verde" },
+    { tipo: "amarelo" },
+    { tipo: "azul" }
+  ]);
+
+
+  /* =========================
+     TIPO DEPOSITO
+  ========================= */
+
+  await TipoDeposito.bulkCreate([
+    { tipo: "superficie" },
+    { tipo: "subterraneo" }
+  ]);
+
+
+  /* =========================
+     DEPOSITO
+  ========================= */
+
+  await Deposito.bulkCreate([
+    {
+      capacidadeTotal: 2.5,
+      altura: 1.0,
+      tipoDepositoId: 1,
+      descricao: "apenas um ecoponto regular"
+    },
+
+    {
+      capacidadeTotal: 5.0,
+      altura: 2.0,
+      tipoDepositoId: 2,
+      descricao: "subterraneo grande e tal ya"
+    }
+  ]);
+
+
+  /* =========================
+     ECOPONTOS
+  ========================= */
+
+  await Ecoponto.bulkCreate([
+
+    {
+      codigo: "VX5FT",
+      tipoEcopontoId: 1,
+      depositoId: 1,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um vidrão superficial em aveiro"
+    },
+
+    {
+      codigo: "VX6FT",
+      tipoEcopontoId: 2,
+      depositoId: 1,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um embalão superficial em aveiro"
+    },
+
+    {
+      codigo: "VX7FT",
+      tipoEcopontoId: 3,
+      depositoId: 1,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um papelão superficial em aveiro"
+    },
+
+    {
+      codigo: "VX5FS",
+      tipoEcopontoId: 1,
+      depositoId: 2,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um vidrão subterrâneo em aveiro"
+    },
+
+    {
+      codigo: "VX6FS",
+      tipoEcopontoId: 2,
+      depositoId: 2,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um embalão subterrâneo em aveiro"
+    },
+
+    {
+      codigo: "VX7FS",
+      tipoEcopontoId: 3,
+      depositoId: 2,
+      latitude: 40.642346,
+      longitude: -8.649730,
+      descricao: "um papelão subterrâneo em aveiro"
+    }
+
+  ]);
+
+
+  /* =========================
+     EQUIPAMENTOS
+  ========================= */
+
+  await Equipamento.bulkCreate([
+
+    {
+      codigo: "ARD001",
+      ativo: true
+    },
+
+    {
+      codigo: "ARD002",
+      ativo: true
+    },
+
+    {
+      codigo: "ARD003",
+      ativo: true
+    }
+
+  ]);
+
+
+  /* =========================
+     ECOPONTO_EQUIPAMENTO
+  ========================= */
+
+  await EcopontoEquipamento.bulkCreate([
+
+    {
+      equipamentoId: 1,
+      ecopontoId: 1,
+      ativo: true
+    },
+
+    {
+      equipamentoId: 2,
+      ecopontoId: 2,
+      ativo: false
+    },
+
+    {
+      equipamentoId: 3,
+      ecopontoId: 3,
+      ativo: true
+    }
+
+  ]);
+
+
+
+  console.log("Dados inseridos com sucesso!");
 }
 
-runSQL();
+
+module.exports = { inserirDados };
